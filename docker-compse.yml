@@ -1,0 +1,62 @@
+# downloadad from https://github.com/matrix-org/synapse/raw/develop/contrib/docker/docker-compose.yml
+# on 2023-11-23 (last commit 7013e06) and editied
+
+# This compose file is compatible with Compose itself, it might need some
+# adjustments to run properly with stack.
+
+version: '3'
+
+services:
+
+  synapse:
+    image: docker.io/matrixdotorg/synapse:latest
+    # Since synapse does not retry to connect to the database, restart upon
+    # failure
+    restart: unless-stopped
+    # See the readme for a full documentation of the environment settings
+    # NOTE: You must edit homeserver.yaml to use postgres, it defaults to sqlite
+    environment:
+      - SYNAPSE_CONFIG_DIR=/config
+    volumes:
+      # You may either store all the files in a local folder
+      - data:/data
+      - ./config:/config
+      # .. or you may split this between different storage points
+      # - ./files:/data
+      # - /path/to/ssd:/data/uploads
+      # - /path/to/large_hdd:/data/media
+    depends_on:
+      - db
+    networks:
+      - proxy
+      - default
+    # ... or use a reverse proxy, here is an example for traefik:
+    labels:
+      # Alternatively, for Traefik version 2.0:
+      - traefik.enable=true
+      - traefik.http.routers.synapse.rule=Host(`matrix.queerreferat.ac`)
+      - traefik.http.services.synapse.loadbalancer.server.port=8008
+
+  db:
+    image: docker.io/postgres:12-alpine
+    # Change that password, of course!
+    environment:
+      - POSTGRES_USER=synapse
+      - POSTGRES_PASSWORD=${PGSQL_PASSWORD}
+      # ensure the database gets created correctly
+      # https://matrix-org.github.io/synapse/latest/postgres.html#set-up-database
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      # You may store the database tables in a local folder..
+      - pgsql:/var/lib/postgresql/data
+      # .. or store them on some high performance storage for better results
+      # - /path/to/ssd/storage:/var/lib/postgresql/data
+
+volumes:
+  data:
+  pgsql:
+
+networks:
+  proxy:
+    external: true
+    name: proxy
